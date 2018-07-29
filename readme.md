@@ -11,8 +11,7 @@ FH is a privacy tool that can:
 - decrypt
 
 1) Encryption phase
-Encryption is the default, anyway mode is governed by the =m flag
-	- -m=E is encrypt
+Encryption is the default, anyway mode is governed by the -m flag (m=E is encrypt)
 1.1) Algorithms
 Three algorithms can be used
 	- AES with 256 bit key and 128 bit block size
