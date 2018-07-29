@@ -1,6 +1,6 @@
 FH (file hider) readme
 0) Intro
-FH is a privacy tool base on the contrary of the security by obscurity principle.  
+FH is a privacy tool based on the contrary of the security by obscurity principle.  
 I think that something is secure if ti secure, not relying on the fact that it is secret, because sooner or later it will be not secret anymore.
 So everyone is invited to comment and give suggestions on how to make it better.
 
@@ -60,18 +60,16 @@ Default is 1
   the size of the phase 1 output. If not, simple prepending is done
 
 IF mode 'RAW' is used and -eb= is used with a not too flat-coloured image, 
-it will be very hard if not impossibile to demonstrate that the result is not a
-regular image.  
+it will be very hard if not impossibile to demonstrate that the result is not a regular image.  
 
 1.7) Final output name  
-Use -o to decide the final name of the result. If omitted, the first (or only)
-input file, with suffix '.out' will be used.
+Use -o to decide the final name of the result. If omitted, the first (or only) input file, with suffix '.out' will be used.
 
 2) Decryption phase (-m=D)  
 
 2.1) Algorithm and format  
-Algorithm and format and prepended/merged bmp are automatically detected and
-managed by the decryption phase
+Algorithm and format and prepended/merged bmp are automatically detected and managed by the decryption phase  
+
 2.2) Password  
 Use -p to provide the password
 
@@ -79,13 +77,13 @@ Use -p to provide the password
 3) Examples  
 
 fh -p=SeCrEt! -i="cryptthis.doc"  
-	Encrypt cryptthis.doc into cryptthis.out with algo=0 and format = 1  
-	(rename as BMP and open to check)
+   Encrypt cryptthis.doc into cryptthis.out with algo=0 and format = 1  
+   (rename as BMP and open to check)  
 fh -p=SeCrEt! -i="cryptthis.doc"  -o="output.bmp"  
-	As above, with predefined ouput name  
+   As above, with predefined ouput name  
 fh -p=SeCrEt! -i="cryptthis.doc"  -a=2 -f=R  
-	As above, choosing algo and format  
+   As above, choosing algo and format  
 fh -p=SeCrEt! -i="cryptthis.doc" -f=R -e=guest.bmp  
-	guest.bmp will be prepended  
+   guest.bmp will be prepended  
 fh -p=SeCrEt! -i="cryptthis.doc" -f=R -eb=guest.bmp  
-	guest.bmp will be used as guest image  
+   guest.bmp will be used as guest image  
