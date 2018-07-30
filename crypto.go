@@ -57,7 +57,7 @@ func (mh *microHeader) byteMe() []byte {
 	return res
 }
 
-func readMicroHeader(tf io.Reader) (*microHeader, error) {
+func readMicroHeader(tf io.Reader, dbg bool) (*microHeader, error) {
 	mh := new(microHeader)
 	buf := make([]byte, 256)
 	_, err := tf.Read(buf[:2])
@@ -65,8 +65,7 @@ func readMicroHeader(tf io.Reader) (*microHeader, error) {
 		return nil, err
 	}
 	mh.algo = buf[1] & 0x03
-	fmt.Println(mh.algo)
-	bs, _, ts := getSizes(mh.algo)
+	bs, _, ts := getSizes(mh.algo, dbg)
 
 	_, err = tf.Read(buf[:bs])
 	if err != nil {
@@ -196,7 +195,7 @@ func (cd *cryptoData) forgeEncryptedHeader(padding uint16) *encryptedHeader {
 // the blocksise which is also the IV size for every algorithm used here
 // the keysize
 // the tweak size
-func getSizes(algo byte) (blockSize int, keySize int, tweakSize int) {
+func getSizes(algo byte, dbg bool) (blockSize int, keySize int, tweakSize int) {
 	switch algo {
 	case 0:
 		blockSize = aes.BlockSize
@@ -211,8 +210,7 @@ func getSizes(algo byte) (blockSize int, keySize int, tweakSize int) {
 		keySize = 128
 		tweakSize = 16
 	}
-	//if *verbose {
-	if true {
+	if dbg {
 		log.Println(algo, ": bs =", blockSize, "ks =", keySize, "ts =", tweakSize)
 	}
 	return
@@ -238,13 +236,13 @@ func getEngine(algo byte, key []byte, tweak []byte) (cipher.Block, error) {
 // iv, salt, and tweak (when necessary) are randomly created
 // as well as a filler for (in case) the last incomplete block
 
-func getCriptoData(algo byte, password *string) (*cryptoData, error) {
+func getCriptoData(algo byte, password *string, dbg bool) (*cryptoData, error) {
 	// print the algorithm
-	if *verbose {
+	if dbg {
 		log.Println("Algo =", algo)
 	}
 	// get the sizes of block, key, tweak (iv = block, always for the algo used)
-	blockSize, keySize, tweakSize := getSizes(algo)
+	blockSize, keySize, tweakSize := getSizes(algo, dbg)
 	// something wrong
 	if blockSize == 0 || keySize == 0 {
 		return nil, errors.New("Unknown algorithm")
@@ -294,7 +292,7 @@ func getCriptoData(algo byte, password *string) (*cryptoData, error) {
 	// create a cryptoData structure
 	rtr := &cryptoData{engine: engine, blockSize: blockSize, keySize: keySize, algo: algo, iv: iv, salt: salt, filler: filler, tweak: tweak}
 	// log it if necessary
-	if *verbose {
+	if dbg {
 		rtr.LogMe(key)
 	}
 	// return that and no error
@@ -303,13 +301,13 @@ func getCriptoData(algo byte, password *string) (*cryptoData, error) {
 
 // getDecriptoData provides criptodata structure for decryption.
 // in this case iv, salt, tweak are passed as input together with the key and algo
-func getDecriptoData(algo byte, password *string, iv []byte, salt []byte, tweak []byte) (*cryptoData, error) {
+func getDecriptoData(algo byte, password *string, iv []byte, salt []byte, tweak []byte, dbg bool) (*cryptoData, error) {
 	// print the algo
-	if *verbose {
+	if dbg {
 		log.Println("Algo =", algo)
 	}
 	// check that algo is ok an get the lengths of block and key
-	blockSize, keySize, _ := getSizes(algo)
+	blockSize, keySize, _ := getSizes(algo, dbg)
 	// if unknown algo, exit with error
 	if blockSize == 0 || keySize == 0 {
 		return nil, errors.New("Unknown algorithm")
@@ -325,7 +323,7 @@ func getDecriptoData(algo byte, password *string, iv []byte, salt []byte, tweak 
 	// compile the criptodata structure
 	rtr := &cryptoData{engine: engine, blockSize: blockSize, keySize: keySize, algo: algo, iv: iv, salt: salt, filler: nil, tweak: tweak}
 	// print it, if needed
-	if *verbose {
+	if dbg {
 		rtr.LogMe(key)
 	}
 	//return it and no error

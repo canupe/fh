@@ -12,10 +12,10 @@ import (
 	"os"
 )
 
-func destroy(fname string) error {
+func destroy(fname string, dbg bool) error {
 	_, err := os.Stat(fname)
 	if err != nil {
-		if *verbose {
+		if dbg {
 			log.Println(fname, "does not exist")
 		}
 		return nil
@@ -167,7 +167,7 @@ func prepend(before string, payload string, final string) error {
 	return nil
 }
 
-func canBeBlended(source string, container string) (*bmpHeader, *dibHeader, error) {
+func canBeBlended(source string, container string, dbg bool) (*bmpHeader, *dibHeader, error) {
 	sfi, err := os.Stat(source)
 	if err != nil {
 		return nil, nil, err
@@ -181,7 +181,9 @@ func canBeBlended(source string, container string) (*bmpHeader, *dibHeader, erro
 	if err != nil {
 		return nil, nil, err
 	}
-	log.Println(bh.printMe())
+	if dbg {
+		log.Println(bh.printMe())
+	}
 	if bh.marker != "BM" {
 		return nil, nil, errors.New("Not BM file")
 	}
@@ -189,7 +191,9 @@ func canBeBlended(source string, container string) (*bmpHeader, *dibHeader, erro
 	if err != nil {
 		return nil, nil, err
 	}
-	log.Println(dh.printMe())
+	if dbg {
+		log.Println(dh.printMe())
+	}
 	if dh.typeLen != 40 {
 		return nil, nil, errors.New("Not DIB sub-header")
 	}
@@ -221,7 +225,7 @@ func blend(source string, container string, mix string, debug bool) error {
 		return err
 	}
 	defer sourcef.Close()
-	bh, dh, err := canBeBlended(source, container)
+	bh, dh, err := canBeBlended(source, container, debug)
 	if err != nil {
 		return err
 	}
@@ -319,7 +323,7 @@ func isPrepended(source string) (bool, error) {
 	return false, nil
 }
 
-func detach(source string, separated string) error {
+func detach(source string, separated string, dbg bool) error {
 	sf, err := os.Open(source)
 	if err != nil {
 		return err
@@ -352,7 +356,9 @@ func detach(source string, separated string) error {
 	if err != nil {
 		return err
 	}
-	log.Println("Detaching", separated, "from", source, ":", n, "bytes separated")
+	if dbg {
+		log.Println("Detaching", separated, "from", source, ":", n, "bytes separated")
+	}
 	return nil
 }
 
@@ -478,6 +484,12 @@ func sblend(source string, extracted string) error {
 	return nil
 }
 
+// checkAndDelete deletes a file and returns nil
+// - if it not exists
+// - if it has been deleted successfully
+// or error if
+// - the error returned by Stat(), apart 'not exists'
+// - the name does not indicate a regular file
 func checkAndDelete(fileName string) error {
 	fi, err := os.Stat(fileName)
 	if err == nil {
@@ -495,13 +507,13 @@ func checkAndDelete(fileName string) error {
 	return err
 }
 
-func prependOrBlendOrRename(inputName string, tryToPrepend string, tryToBlend string, finalName string) error {
+func prependOrBlendOrRename(inputName string, tryToPrepend string, tryToBlend string, finalName string, dbg bool) error {
 	if len(tryToPrepend) == 0 && len(tryToBlend) == 0 {
 		return os.Rename(inputName, finalName)
 	}
 	if len(tryToBlend) != 0 {
 		// blend requested. Check if possibile
-		_, _, err := canBeBlended(inputName, tryToBlend)
+		_, _, err := canBeBlended(inputName, tryToBlend, dbg)
 		if err != nil {
 			// problems (not a BMP, size constraint, type of BMP, etc...)
 			// print and simulate preprending with the same file
@@ -510,7 +522,7 @@ func prependOrBlendOrRename(inputName string, tryToPrepend string, tryToBlend st
 			tryToPrepend = tryToBlend
 		} else {
 			// do it
-			err := blend(inputName, tryToBlend, finalName, *verbose)
+			err := blend(inputName, tryToBlend, finalName, dbg)
 			if err != nil {
 				// problems (SHOULD NOT HAPPEN HERE, CHECKED BEFORE!)
 				// print and simulate prepending with the same file

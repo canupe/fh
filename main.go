@@ -21,9 +21,6 @@ import (
 	"strings"
 )
 
-// verbose variable is made global to be used by every method avoiding passages
-var verbose *bool
-
 func main() {
 	// Welcome printing
 	log.Println("File Hider 2")
@@ -41,7 +38,7 @@ func main() {
 	// if (E) used suboption can be R = raw, 1 = monochrome BMP 8bpp, 4 = multichrome BMP 32bpp
 	format := flag.String("f", "1", "Format")
 	// verbose flag (insecure)
-	verbose = flag.Bool("v", false, "Verbose")
+	verbose := flag.Bool("v", false, "Verbose")
 	// keep temporary gz file (the file is shredded but use only for debug)
 	keep := flag.Bool("keep", false, "Keep")
 	// external file to prepend to the output (must be a BMP file or the D will fail!)
@@ -61,9 +58,9 @@ func main() {
 			return
 		}
 	} else {
-		// if F launch Master File Manager
+		// if F launch Master File Manager, then exits
 		if *mode == "F" {
-			manageMF(*keyfile)
+			manageMF(*keyfile, *verbose)
 			return
 		}
 		// else print usage and exit
@@ -91,7 +88,7 @@ func main() {
 	if len(*fromFilePwd) > 0 {
 		// Pwd must be retrieved from master file
 		// Open the file (which includes asking password)
-		km, kpath, _, err := openMasterFile(*keyfile)
+		km, kpath, _, err := openMasterFile(*keyfile, *verbose)
 		// if something wrong log and exit
 		if err != nil {
 			log.Println(err)
@@ -174,7 +171,7 @@ func main() {
 		fnzip := "_fh_.gz"
 		if !*keep {
 			// be sure to destroy at the end with shredding unless keep flag is set
-			defer destroy(fnzip)
+			defer destroy(fnzip, *verbose)
 		}
 		// call a function with all the files to zip them all
 		zipfileLen, err := zipFilesAndCheck(fileArray, fnzip)
@@ -185,7 +182,7 @@ func main() {
 		}
 
 		// create cryptodata on the algorithm chosen and on the password
-		cryda, err := getCriptoData(algo, password)
+		cryda, err := getCriptoData(algo, password, *verbose)
 		// if something wrong log and exit
 		if err != nil {
 			log.Println(err)
@@ -198,7 +195,7 @@ func main() {
 		destinationForCBCFileName := "_fh_.e1"
 		if !*keep {
 			// defer the shredding of that file
-			defer destroy(destinationForCBCFileName)
+			defer destroy(destinationForCBCFileName, *verbose)
 		}
 
 		// Start preparing the "base" of output file, passing
@@ -206,14 +203,16 @@ func main() {
 		// The format
 		// The crypto data (has to be put in header)
 		// The size of the data to encrypt
-		eh, err := prepareOutputFile(destinationForCBCFileName, *format, cryda, zipfileLen)
+		eh, err := prepareOutputFile(destinationForCBCFileName, *format, cryda, zipfileLen, *verbose)
 		if err != nil {
 			log.Println(err)
 			return
 		}
 		// eh contains a signature (FH) and the needed padding at the end
 		// some of this padding is block padding, some may be BMP padding
-		fmt.Println("Obtained encrypted header", eh.printMe())
+		if *verbose {
+			log.Println("Obtained encrypted header", eh.printMe())
+		}
 
 		// Open the file containing the data to encrypt
 		// Whose name will be of course the temporary zip file name "_fh_.gz"
@@ -227,7 +226,7 @@ func main() {
 		defer sourceForCBC.Close()
 		// This will Encrypt the input data from the Reader into the destinationForCBCFileName file
 		// according to crypto data contained in cryda
-		err = CBCEncryptToFile(eh, sourceForCBC, destinationForCBCFileName, cryda)
+		err = CBCEncryptToFile(eh, sourceForCBC, destinationForCBCFileName, cryda, *verbose)
 		// if something wrong, log and exit
 		if err != nil {
 			log.Println(err)
@@ -248,7 +247,7 @@ func main() {
 		}
 		// Now, deal with the 'prepend' or 'embed' option
 		log.Println("Finalizing", *final)
-		err = prependOrBlendOrRename(destinationForCBCFileName, *extra, *extra2, *final)
+		err = prependOrBlendOrRename(destinationForCBCFileName, *extra, *extra2, *final, *verbose)
 		// if something wrong, log and exit
 		if err != nil {
 			log.Println(err)
@@ -276,7 +275,7 @@ func main() {
 			}
 			// and mark for delete
 			if !*keep {
-				defer destroy(todecrypt)
+				defer destroy(todecrypt, *verbose)
 			}
 		} else {
 			// let's see if is preprended
@@ -289,14 +288,14 @@ func main() {
 				// if yes, sprepend to _fh_.bmp
 				log.Println("Separating temporary file")
 				todecrypt = "_fh_.d1"
-				err := detach(fileArray[0], todecrypt)
+				err := detach(fileArray[0], todecrypt, *verbose)
 				if err != nil {
 					log.Println("Error separating file:", err)
 					return
 				}
 				// and mark for delete
 				if !*keep {
-					defer destroy(todecrypt)
+					defer destroy(todecrypt, *verbose)
 				}
 			}
 		}
@@ -316,7 +315,7 @@ func main() {
 		}
 		// analyze file and extract headers
 		// actually the only relevant information is in mh
-		mh, bh, dh, skippedBytes, err := detectFileFormat(todecryptf, true)
+		mh, bh, dh, skippedBytes, err := detectFileFormat(todecryptf, *verbose)
 		if err != nil {
 			log.Println(err)
 			return
@@ -336,7 +335,7 @@ func main() {
 			log.Println("File len =", fi.Size(), "remaining len =", lenOfDataAvailableInSource)
 		}
 		// now we should have everything to rebuild the crypto data
-		cryda, err := getDecriptoData(mh.algo, password, mh.iv, mh.salt, mh.tweak)
+		cryda, err := getDecriptoData(mh.algo, password, mh.iv, mh.salt, mh.tweak, *verbose)
 		if err != nil {
 			log.Println(err)
 			return
@@ -345,10 +344,10 @@ func main() {
 		destinationForCBCFileName := "_fh2.gz"
 		if !*keep {
 			// defer the shredding of that file
-			defer destroy(destinationForCBCFileName)
+			defer destroy(destinationForCBCFileName, *verbose)
 		}
 		// decrypt in that file
-		err = CBCDecryptToFile(todecryptf, destinationForCBCFileName, cryda, lenOfDataAvailableInSource)
+		err = CBCDecryptToFile(todecryptf, destinationForCBCFileName, cryda, lenOfDataAvailableInSource, *verbose)
 		if err != nil {
 			log.Println(err)
 			return
@@ -397,7 +396,7 @@ func finalPad(fname string, padLen int) error {
 }
 
 // CBCDecryptToFile is a wrapper for CBCEncrypt that accepts a file name as output file
-func CBCDecryptToFile(originFile io.Reader, outfile string, cryda *cryptoData, dataAvailable uint32) error {
+func CBCDecryptToFile(originFile io.Reader, outfile string, cryda *cryptoData, dataAvailable uint32, dbg bool) error {
 	// filler nil means DECRYPTING, and in this case the output file must be created
 	// (will contain the derypted data)
 	tflag := os.O_CREATE | os.O_TRUNC
@@ -411,11 +410,11 @@ func CBCDecryptToFile(originFile io.Reader, outfile string, cryda *cryptoData, d
 	//defer the closing
 	defer writeHere.Close()
 	// and return the values of the wrapped function called with a Writer instead of a file name
-	return CBCDecrypt(originFile, writeHere, cryda, dataAvailable)
+	return CBCDecrypt(originFile, writeHere, cryda, dataAvailable, dbg)
 }
 
 // CBCEncryptToFile is a wrapper for CBCEncrypt that accepts a file name as output file
-func CBCEncryptToFile(eh *encryptedHeader, originFile io.Reader, outfile string, cryda *cryptoData) error {
+func CBCEncryptToFile(eh *encryptedHeader, originFile io.Reader, outfile string, cryda *cryptoData, dbg bool) error {
 	// append mode if ENCRYPTING because file header has already been written
 	// and we must append
 	tflag := os.O_WRONLY | os.O_APPEND
@@ -429,7 +428,7 @@ func CBCEncryptToFile(eh *encryptedHeader, originFile io.Reader, outfile string,
 	//defer the closing
 	defer writeHere.Close()
 	// and return the values of the wrapped function called with a Writer instead of a file name
-	return CBCEncrypt(eh, originFile, writeHere, cryda)
+	return CBCEncrypt(eh, originFile, writeHere, cryda, dbg)
 }
 
 // CBCEncrypt perform Encryption if cryptodata.filler (cryda.filler) is full and
@@ -437,7 +436,7 @@ func CBCEncryptToFile(eh *encryptedHeader, originFile io.Reader, outfile string,
 // if decrypting, dataLen is important because it tells where the data finishes and the
 // padding starts, otherwise it is not used
 // data to pass in the engine is reader from the io.Reader and written to the io.Writer
-func CBCEncrypt(eh *encryptedHeader, originFile io.Reader, writeHere io.Writer, cryda *cryptoData) error {
+func CBCEncrypt(eh *encryptedHeader, originFile io.Reader, writeHere io.Writer, cryda *cryptoData, dbg bool) error {
 	// declares a ciphers and using the engine inside crypto data
 	// wraps it into a CBC encrypter or decrypter (IV is needed here)
 	var worker cipher.BlockMode
@@ -449,7 +448,7 @@ func CBCEncrypt(eh *encryptedHeader, originFile io.Reader, writeHere io.Writer, 
 	if err != nil {
 		return err
 	}
-	if *verbose {
+	if dbg {
 		log.Println(n, "bytes of eh written:", eh.printMe())
 		log.Println("Padding after data will be of", eh.padding)
 	}
@@ -466,7 +465,9 @@ func CBCEncrypt(eh *encryptedHeader, originFile io.Reader, writeHere io.Writer, 
 		// if EOF, obviously, break the cycle
 		if err != nil {
 			if err == io.EOF {
-				log.Println("EOF Found, bytes read this call:", n, "total :", bytesAlreadyRead)
+				if dbg {
+					log.Println("EOF Found, bytes read this call:", n, "total :", bytesAlreadyRead)
+				}
 				break
 			}
 			// if error but not EOF, exit with error
@@ -479,7 +480,7 @@ func CBCEncrypt(eh *encryptedHeader, originFile io.Reader, writeHere io.Writer, 
 			// calculate how many pad bytes we need
 			blockPadUsed = cryda.blockSize - (n % cryda.blockSize)
 			// print it
-			if *verbose {
+			if dbg {
 				log.Println("Chunk of size", n, "needs padding of", blockPadUsed)
 			}
 			// append enough random rubbish
@@ -498,7 +499,10 @@ func CBCEncrypt(eh *encryptedHeader, originFile io.Reader, writeHere io.Writer, 
 
 	}
 	// print (always) how many bytes have been E/D
-	log.Println(bytesAlreadyRead, "bytes encoded,", blockPadUsed, "padding used")
+	log.Println(bytesAlreadyRead, "bytes encoded")
+	if dbg {
+		log.Println(blockPadUsed, "padding used")
+	}
 	// return no error
 	return nil
 }
@@ -508,11 +512,11 @@ func CBCEncrypt(eh *encryptedHeader, originFile io.Reader, writeHere io.Writer, 
 // if decrypting, dataLen is important because it tells where the data finishes and the
 // padding starts, otherwise it is not used
 // data to pass in the engine is reader from the io.Reader and written to the io.Writer
-func CBCDecrypt(originFile io.Reader, writeHere io.Writer, cryda *cryptoData, dataAvailable uint32) error {
+func CBCDecrypt(originFile io.Reader, writeHere io.Writer, cryda *cryptoData, dataAvailable uint32, dbg bool) error {
 	// the first block, which must be decrypted, is the 'encrypted header'
 	// containing FH, the padding used, and filling up to blocksize
 	// print the len of file
-	if *verbose {
+	if dbg {
 		log.Println("Data available in reader =", dataAvailable)
 		log.Println("Block size =", cryda.blockSize)
 	}
@@ -537,7 +541,7 @@ func CBCDecrypt(originFile io.Reader, writeHere io.Writer, cryda *cryptoData, da
 	}
 	// recover the padding
 	padding := uint32(bytesOfEh[3])*256 + uint32(bytesOfEh[2])
-	if *verbose {
+	if dbg {
 		log.Println(cryda.blockSize, "bytes read in 'encrypted header'")
 		log.Println("TOTAL PADDING is", padding, "so", padding, "bytes are not of interest")
 	}
@@ -545,7 +549,7 @@ func CBCDecrypt(originFile io.Reader, writeHere io.Writer, cryda *cryptoData, da
 	missingUsefulBytes := dataAvailable - padding - uint32(cryda.blockSize)
 	// remember this number
 	usefulBytesAfterHeader := missingUsefulBytes
-	if *verbose {
+	if dbg {
 		log.Println("Useful bytes from now are", usefulBytesAfterHeader)
 	}
 
@@ -572,18 +576,18 @@ func CBCDecrypt(originFile io.Reader, writeHere io.Writer, cryda *cryptoData, da
 		// we have passed the limit of useful data (we have read some padding)
 		if bytesAlreadyRead > usefulBytesAfterHeader {
 			// print it
-			if *verbose {
+			if dbg {
 				log.Println("bytes read =", n, "bytesAlreadyRead =", bytesAlreadyRead, "usefulBytesAfterHeader =", usefulBytesAfterHeader, ": this is last block")
 			}
 			interestingBytes := usefulBytesAfterHeader - (bytesAlreadyRead - uint32(n))
 			interestingBytesPadded := getPaddedLen(interestingBytes, uint32(cryda.blockSize))
 			// decrypt the block (the part read)
-			if *verbose {
+			if dbg {
 				log.Println("Interesting bytes are :", interestingBytes, "padded to", interestingBytesPadded)
 			}
 			worker.CryptBlocks(block[:interestingBytesPadded], block[:interestingBytesPadded])
 			// write the useful part
-			if *verbose {
+			if dbg {
 				log.Println("Writing the last bytes :", interestingBytes)
 			}
 			_, err := writeHere.Write(block[:interestingBytes])
@@ -605,13 +609,13 @@ func CBCDecrypt(originFile io.Reader, writeHere io.Writer, cryda *cryptoData, da
 		}
 	}
 	// print (always) how many bytes have been E/D
-	log.Println(bytesAlreadyRead, "bytes en/de-coded")
+	log.Println(bytesAlreadyRead, "bytes decrypted")
 	// return no error
 	return nil
 }
 
 // prepareOutputFile is a wrapper for prepareOutputWriter accepting a file name as first paramete instead of a writer
-func prepareOutputFile(fname string, format string, cryda *cryptoData, payloadLen uint32) (*encryptedHeader, error) {
+func prepareOutputFile(fname string, format string, cryda *cryptoData, payloadLen uint32, dbg bool) (*encryptedHeader, error) {
 	// creates a file from the name
 	tf, err := os.Create(fname)
 	// on error, return error
@@ -621,7 +625,7 @@ func prepareOutputFile(fname string, format string, cryda *cryptoData, payloadLe
 	// defer the closing
 	defer tf.Close()
 	// return the output of the wrapped function
-	return prepareOutputWriter(tf, format, cryda, payloadLen)
+	return prepareOutputWriter(tf, format, cryda, payloadLen, dbg)
 }
 
 func testFindBmpDataForSize() {
@@ -699,7 +703,7 @@ func getPaddedLen(originalLen uint32, blockSize uint32) uint32 {
 // payloadLen is the len of the data to encrypt
 // returns how much the data needs to be padded to be a valid BMP and the error, in case
 
-func prepareOutputWriter(tf io.Writer, format string, cryda *cryptoData, payloadLen uint32) (*encryptedHeader, error) {
+func prepareOutputWriter(tf io.Writer, format string, cryda *cryptoData, payloadLen uint32, dbg bool) (*encryptedHeader, error) {
 	// detect how much data, padding included, needs to be encrypted
 	encryptedLen := payloadLen
 	// extract a public header from crpytoData
@@ -709,11 +713,11 @@ func prepareOutputWriter(tf io.Writer, format string, cryda *cryptoData, payload
 		// final format is [public header]|E(padToBlock(encrypted header|realpayload))
 		encryptedLen = getPaddedLen(eh.getLen()+payloadLen, uint32(cryda.blockSize))
 		eh.padding = uint16(encryptedLen - (eh.getLen() + payloadLen))
-		if *verbose {
+		if dbg {
 			log.Printf("Input size = %d, eh = %d, needs pad for x%d of %d\n", payloadLen, eh.getLen(), cryda.blockSize, eh.padding)
 			log.Println("Calculated eh :", eh.printMe())
 		}
-		if *verbose {
+		if dbg {
 			log.Println("Writing mh", mh.printMe(), mh.getLen(), "bytes")
 		}
 		_, err := tf.Write(mh.byteMe())
@@ -724,13 +728,13 @@ func prepareOutputWriter(tf io.Writer, format string, cryda *cryptoData, payload
 	}
 	if format == "1" || format == "4" {
 		bypp := uint32(format[0] - '0')
-		if *verbose {
+		if dbg {
 			log.Println("Data to encrypt is", payloadLen, "+ eh :", eh.getLen(), "prepended with mh :", mh.getLen(), "block size is", cryda.blockSize)
 		}
-		row, col := findBmpDataForSize(payloadLen+eh.getLen(), mh.getLen(), uint32(cryda.blockSize), bypp, *verbose)
+		row, col := findBmpDataForSize(payloadLen+eh.getLen(), mh.getLen(), uint32(cryda.blockSize), bypp, dbg)
 		bmpRawSize := row * col * bypp
 		eh.padding = uint16(bmpRawSize - (mh.getLen() + eh.getLen() + payloadLen))
-		if *verbose {
+		if dbg {
 			log.Printf("Bmp Raw Size Will be %d (%dx%dx%d)\n", bmpRawSize, row, col, bypp)
 			log.Printf("Bmp data will be mh (%d bytes in plain)\n", mh.getLen())
 			log.Printf("                 eh + data = %d + %d = %d\n", eh.getLen(), payloadLen, eh.getLen()+payloadLen)
@@ -760,14 +764,14 @@ func prepareOutputWriter(tf io.Writer, format string, cryda *cryptoData, payload
 		dh.planes = 1
 		dh.rawsiz = bmpRawSize
 		dh.typeLen = 40
-		if *verbose {
+		if dbg {
 			log.Println("Writing bh :", bh.printMe())
 		}
 		_, err := tf.Write(bh.byteMe())
 		if err != nil {
 			return nil, err
 		}
-		if *verbose {
+		if dbg {
 			log.Println("Writing dh :", dh.printMe())
 		}
 		_, err = tf.Write(dh.byteMe())
@@ -775,7 +779,7 @@ func prepareOutputWriter(tf io.Writer, format string, cryda *cryptoData, payload
 			return nil, err
 		}
 		if bypp == 1 {
-			if *verbose {
+			if dbg {
 				log.Println("Writing color map")
 			}
 			colors := bytes.Repeat([]byte{200, 0, 0, 0}, 256)
@@ -784,7 +788,7 @@ func prepareOutputWriter(tf io.Writer, format string, cryda *cryptoData, payload
 				return nil, err
 			}
 		}
-		if *verbose {
+		if dbg {
 			log.Println("Writing mh :", mh.printMe())
 		}
 		_, err = tf.Write(mh.byteMe())
@@ -825,7 +829,7 @@ func detectFileFormat(tf io.ReadSeeker, dbg bool) (*microHeader, *bmpHeader, *di
 		if dbg {
 			log.Println("Offset skipped", n)
 		}
-		mh, err := readMicroHeader(tf)
+		mh, err := readMicroHeader(tf, dbg)
 		if err != nil {
 			return nil, nil, nil, 0, err
 		}
@@ -835,7 +839,7 @@ func detectFileFormat(tf io.ReadSeeker, dbg bool) (*microHeader, *bmpHeader, *di
 		return mh, bh, dh, uint32(bh.offset) + mh.getLen(), nil
 	}
 	// not a fake BMP, assume microheader (which is anonymous) is at the start
-	mh, err := readMicroHeader(tf)
+	mh, err := readMicroHeader(tf, dbg)
 	if err != nil {
 		return nil, nil, nil, 0, err
 	}
@@ -867,17 +871,17 @@ func readFileIntoMap(fn string, pwd *string, dbg bool) (map[string]string, error
 		log.Println("File len =", fi.Size(), "remaining len =", lenOfDataAvailableInSource)
 	}
 	// now we should have everything to rebuild the crypto data
-	cryda, err := getDecriptoData(mh.algo, pwd, mh.iv, mh.salt, mh.tweak)
+	cryda, err := getDecriptoData(mh.algo, pwd, mh.iv, mh.salt, mh.tweak, dbg)
 	if err != nil {
 		return nil, err
 	}
 	// we will decode in a buffer in memory
 	writeHere := new(bytes.Buffer)
-	err = CBCDecrypt(sourceForCBC, writeHere, cryda, lenOfDataAvailableInSource)
+	err = CBCDecrypt(sourceForCBC, writeHere, cryda, lenOfDataAvailableInSource, dbg)
 	if err != nil {
 		return nil, err
 	}
-	if *verbose {
+	if dbg {
 		fmt.Println(writeHere.Len(), "bytes read")
 		fmt.Println(string(writeHere.Bytes()))
 	}
@@ -889,13 +893,13 @@ func readFileIntoMap(fn string, pwd *string, dbg bool) (map[string]string, error
 	return kmap, nil
 }
 
-func openMasterFile(keyfile string) (map[string]string, *string, *string, error) {
+func openMasterFile(keyfile string, dbg bool) (map[string]string, *string, *string, error) {
 	kfn, kfe, err := locateKeyFile(keyfile)
 	if err != nil {
 		log.Println(err)
 		return nil, nil, nil, err
 	}
-	if *verbose {
+	if dbg {
 		log.Println("PWD file =", kfn, kfe)
 	}
 	kpw := askSomething("Provide Master Key for <"+kfn+"> :", true)
@@ -907,7 +911,7 @@ func openMasterFile(keyfile string) (map[string]string, *string, *string, error)
 	if !kfe {
 		return kmap, &kfn, kpw, nil
 	}
-	kmap, err = readFileIntoMap(kfn, kpw, *verbose)
+	kmap, err = readFileIntoMap(kfn, kpw, dbg)
 	if err != nil {
 		log.Println(err)
 		return nil, nil, nil, err
@@ -915,13 +919,13 @@ func openMasterFile(keyfile string) (map[string]string, *string, *string, error)
 	return kmap, &kfn, kpw, nil
 }
 
-func manageMF(keyfile string) {
+func manageMF(keyfile string, dbg bool) {
 	kfn, kfe, err := locateKeyFile(keyfile)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	if *verbose {
+	if dbg {
 		log.Println("PWD file =", kfn, kfe)
 	}
 	var keypass string
@@ -933,9 +937,9 @@ func manageMF(keyfile string) {
 			continue
 		}
 		if kfe {
-			kmap, err = readFileIntoMap(kfn, &keypass, *verbose)
+			kmap, err = readFileIntoMap(kfn, &keypass, dbg)
 			if err != nil {
-				if *verbose {
+				if dbg {
 					log.Println(err)
 				}
 				log.Println("Password is not correct, or password file corrupted")
@@ -979,7 +983,7 @@ func manageMF(keyfile string) {
 			fmt.Printf("Confirm (Y/n)?")
 			fmt.Scanln(&yn)
 			if yn == "Y" {
-				err := destroy(kfn)
+				err := destroy(kfn, dbg)
 				if err != nil {
 					fmt.Println("Cannot delete", keyfile, err)
 				}
@@ -1015,31 +1019,31 @@ func manageMF(keyfile string) {
 				break
 			}
 			bi := bytes.NewReader(encoded)
-			cryda, err := getCriptoData(2, &keypass)
+			cryda, err := getCriptoData(2, &keypass, dbg)
 			if err != nil {
 				log.Println(err)
 				break
 			}
-			eh, err := prepareOutputFile(kfn, "1", cryda, uint32(len(encoded)))
+			eh, err := prepareOutputFile(kfn, "1", cryda, uint32(len(encoded)), dbg)
 			if err != nil {
 				log.Println(err)
 				break
 			}
-			err = CBCEncryptToFile(eh, bi, kfn, cryda)
+			err = CBCEncryptToFile(eh, bi, kfn, cryda, dbg)
 			if err != nil {
 				log.Println(err)
 				break
 			}
 			blockPaddingAlreadyDone := getPadLen(eh.getLen()+uint32(len(encoded)), uint32(cryda.blockSize))
 			paddingNeeded := int(eh.padding - uint16(blockPaddingAlreadyDone))
-			if *verbose {
+			if dbg {
 				log.Println("TOTAL Padding is", eh.padding)
 				log.Println("Already done block padding is", blockPaddingAlreadyDone, "which is the padding to", cryda.blockSize, "of", eh.getLen()+uint32(len(encoded)))
 				log.Println("Remaining padding needed (random bytes at end of file to complete the BMP) is", paddingNeeded)
 			}
 			// do that final padding (block padding to be skipped, already done in crypting)
 			if paddingNeeded > 0 {
-				if *verbose {
+				if dbg {
 					log.Println("last padding:", paddingNeeded)
 				}
 				err = finalPad(kfn, paddingNeeded)
