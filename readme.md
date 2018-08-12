@@ -87,3 +87,5 @@ fh -p=SeCrEt! -i="cryptthis.doc" -f=R -e=guest.bmp
    guest.bmp will be prepended  
 fh -p=SeCrEt! -i="cryptthis.doc" -f=R -eb=guest.bmp  
    guest.bmp will be used as guest image  
+fh -p=SeCrEt! -i="cryptthis.out" -m=D  
+   decrypt the previously encrypted file  
