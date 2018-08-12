@@ -1,4 +1,4 @@
-FH (file hider) readme
+FH (file hider) readme  
 0) Intro
 FH is a privacy tool based on the contrary of the security by obscurity principle.  
 I think that something is secure if ti secure, not relying on the fact that it is secret, because sooner or later it will be not secret anymore.
