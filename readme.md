@@ -9,8 +9,8 @@ FH is a privacy tool that can:
 - format the final result in three different modes
 - decrypt
 
-1) Encryption phase
-Encryption is the default, anyway mode is governed by the -m flag (m=E is encrypt)
+1.0) Encryption phase  
+Encryption is the default, anyway mode is governed by the -m flag (m=E is encrypt)  
 1.1) Algorithms  
 Three algorithms can be used
 	- AES with 256 bit key and 128 bit block size
@@ -65,7 +65,7 @@ it will be very hard if not impossibile to demonstrate that the result is not a 
 1.7) Final output name  
 Use -o to decide the final name of the result. If omitted, the first (or only) input file, with suffix '.out' will be used.
 
-2) Decryption phase (-m=D)  
+2.0) Decryption phase (-m=D)  
 
 2.1) Algorithm and format  
 Algorithm and format and prepended/merged bmp are automatically detected and managed by the decryption phase  
@@ -74,7 +74,7 @@ Algorithm and format and prepended/merged bmp are automatically detected and man
 Use -p to provide the password
 
 
-3) Examples  
+3.0) Examples  
 
 fh -p=SeCrEt! -i="cryptthis.doc"  
    Encrypt cryptthis.doc into cryptthis.out with algo=0 and format = 1  
